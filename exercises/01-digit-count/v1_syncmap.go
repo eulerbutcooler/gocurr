@@ -1,15 +1,10 @@
 package main
 
 import (
-	"fmt"
 	"strings"
 	"sync"
 	"unicode"
 )
-
-func main() {
-	countDigitsInWords("meo1 mai2 hu catik21123a")
-}
 
 func countDigitsInWords(sent string) int {
 	var wg sync.WaitGroup
@@ -19,12 +14,20 @@ func countDigitsInWords(sent string) int {
 	for r := range words {
 		wg.Go(func() {
 			count := countDigits(r)
-			syncStats.Store(r, count)
+			for {
+				prev, loaded := syncStats.LoadOrStore(r, count)
+				if !loaded {
+					break
+				}
+				if syncStats.CompareAndSwap(r, prev, prev.(int)+count) {
+					break
+				}
+			}
 		})
 	}
 	wg.Wait()
-	fmt.Println(asStats(syncStats))
-	return asStats(syncStats)
+	stats := asStats(syncStats)
+	return stats
 }
 
 func asStats(syncStats *sync.Map) int {
